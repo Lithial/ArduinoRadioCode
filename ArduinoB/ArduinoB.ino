@@ -5,15 +5,17 @@
 
 //create an RF24 object
 RF24 radio(7, 8);  // CE, CSN
-Servo myservo;  // create servo object to control a servo
-// twelve servo objects can be created on most boards
+Servo myServo;  // create servo object to control a servo
 //address through which two modules communicate.
 const byte address[6] = "00001";
 int pos = 0;    // variable to store the servo position
-int trimMap;
-int motorMap;
-//the pin the potentiometer is on
-int potPin = 2;
+int trimMap;    //map to hold the trim data
+int motorMap;   //map to hold the motor data
+int potPin = 2; //the pin the potentiometer is on
+int ledPin = 10;
+int servoPin = 4;
+int motorPin = 3;
+//struct for radio comms
 struct Data{
   int x;
   int y;
@@ -22,49 +24,51 @@ struct Data{
 } data;
 struct Data transferData;
 
+//setup function
 void setup() {
-  // put your setup code here, to run once:
-  Serial.begin(9600);
-  radio.begin();
-  radio.openReadingPipe(1,address);
+  Serial.begin(9600); //start serial
+  radio.begin();      //start radio
+
+  //lots of radio startup stuff thats also explained in the other file
+  radio.openReadingPipe(1,address); 
   radio.setPALevel(RF24_PA_MIN);   
   radio.setDataRate(RF24_250KBPS);
   radio.enableAckPayload();
   radio.writeAckPayload(1,&data.potTrim, sizeof(data.potTrim));
   Serial.println("radio setup successful");
   radio.startListening();
-  pinMode(10, OUTPUT);
-  pinMode(3, OUTPUT);
-  myservo.attach(4);
+  //
+  pinMode(ledPin, OUTPUT);
+  pinMode(motorPin, OUTPUT);
+  myServo.attach(servoPin);
 }
-
+//main loop
 void loop() {
-  delay(5);
-  // put your main code here, to run repeatedly:
-  if(radio.available()){
-     radio.read(&transferData, sizeof(transferData));
-      data.x = transferData.x;
+  delay(5);       //recommended for radio
+  if(radio.available()){    //if radio message available
+     radio.read(&transferData, sizeof(transferData)); //read the data
+      data.x = transferData.x;    //this is a transfer from a holder value that fixed a bug
       data.y = transferData.y;
       data.disabled = transferData.disabled;
-      data.potTrim = analogRead(potPin);
-      delay(5);
-      radio.writeAckPayload(1,&data.potTrim, sizeof(data.potTrim));
-      trimMap = map(data.potTrim, 0,1023,0,180);
-      pos = map(data.x,0,1023,0,180);
-      motorMap = map(data.y, 0,1023,0,255);
+      data.potTrim = analogRead(potPin);   //read the trimPot
+      delay(5);                            //more delays
+      radio.writeAckPayload(1,&data.potTrim, sizeof(data.potTrim));   //write a return payload
+      trimMap = map(data.potTrim, 0,1023,0,180);  //map the data for the default servo pos
+      pos = map(data.x,0,1023,0,180);             //map the data for the current servo pos
+      motorMap = map(data.y, 0,1023,0,255);       //map the motor speed
 
   } 
-  if(!data.disabled){
-    digitalWrite(10, HIGH);
+  if(!data.disabled){         //if everything is disabled
+    digitalWrite(ledPin, HIGH);   //either turn on or off the led
   }else{
-    digitalWrite(10, LOW);
+    digitalWrite(ledPin, LOW);
   }
-  if(data.disabled){
-    myservo.write(trimMap); 
-    analogWrite(3,0);
+  if(data.disabled){          //same for the motors and servo.
+    myServo.write(trimMap); 
+    analogWrite(motorPin,0);  //either sets them to 0 or a pos based on the trim pot
   }else{
-    myservo.write(pos); 
-    analogWrite(3,motorMap);
+    myServo.write(pos); 
+    analogWrite(motorPin,motorMap);
   } 
   
   
